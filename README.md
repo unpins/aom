@@ -45,5 +45,6 @@ The [Releases](https://github.com/unpins/aom/releases) page has standalone binar
 - **Codec:** the AV1 reference encoder/decoder. Reads/writes y4m, raw YUV, IVF and OBU.
 - **Windows:** `mingw` cross, single `.exe`, no companion DLLs.
 - **macOS:** static `.a` codec + C++ runtime linked in; only system frameworks/libSystem stay dynamic.
+- **No embedded resources:** pure codec CLI — nothing baked in beyond the code, and libaom ships no man pages (no `unpin man` entry).
 
 `aomenc` is thorough but slow — for everyday AV1 transcoding [ffmpeg](https://github.com/unpins/ffmpeg) (which links the same libaom) is usually the better tool; `aom` is here for reference-encoder access and AV1 conformance work.
