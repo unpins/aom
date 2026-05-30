@@ -57,6 +57,9 @@
           # output; repoint it at `out` so `nix build` doesn't ask for `bin`.
           postFixup = "";
           postInstall = "";
+          # No tests: libaom's suite (ENABLE_TESTS, off above) downloads ~GB of
+          # AV1 test vectors over the network — impossible in the Nix sandbox —
+          # and runs for a long time. The `aomenc --help` smoke is the floor.
           doCheck = false;
           meta = (old.meta or { }) // { outputsToInstall = [ "out" ]; };
         });
