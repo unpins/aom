@@ -39,6 +39,13 @@
           # without winpthreads. (Same as jxl/avif on mingw.)
           buildInputs = (old.buildInputs or [ ])
             ++ lib.optionals host.isMinGW [ scope.windows.pthreads ];
+          # mingw: function/data-sections so the lld-driven multicall link
+          # (-fuse-ld=lld -Wl,--gc-sections in windowsBuild) can dead-strip
+          # libaom's unreachable encoder/decoder code from the .exe. On Linux
+          # the gc overlay already injects these chain-wide; this only fires
+          # on the mingw cross (no overlay there), so native/darwin unchanged.
+          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "")
+            + lib.optionalString host.isMinGW " -ffunction-sections -fdata-sections";
           cmakeFlags =
             (lib.filter (f: !(lib.hasPrefix "-DBUILD_SHARED_LIBS=" f))
               (old.cmakeFlags or [ ]))
@@ -93,6 +100,10 @@
       windowsBuild = pkgs:
         let cross = ulib.mingwStaticCross pkgs; in
         mk pkgs cross {
+          # -static* folds libgcc + libstdc++ (libaom.a's C++) into the .exe.
+          # The linker (lld) + --gc-sections + --icf=safe come uniformly from
+          # lib.gcSectionsFlag (appended in multicall.nix); on PE that also
+          # sidesteps GNU ld's --gc-sections regression.
           extraLinkFlags = "-static -static-libgcc -static-libstdc++";
         };
     };

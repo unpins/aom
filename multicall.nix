@@ -30,6 +30,15 @@ let
     separateDebugInfo = false;
     postInstall = "";
 
+    # lld is the unpins linker for all non-darwin targets (-fuse-ld=lld comes
+    # from lib.gcSectionsFlag, appended to the multicall post-link below). Put
+    # `ld.lld` on PATH so the $CC-driven combined link resolves it. On PE this
+    # also sidesteps GNU ld's --gc-sections regression (function-sections
+    # overhead > pruning); on ELF it's size-neutral vs GNU ld. darwin keeps
+    # ld64 (lib.lldFinalLink → []).
+    nativeBuildInputs = (old.nativeBuildInputs or [ ])
+      ++ lib.lldFinalLink pkgs;
+
     postBuild = (old.postBuild or "") + ''
       mkdir -p multicall
       printf '%s\n' ${lib.escapeShellArg toolsBash} | tr ' ' '\n' > multicall/tools.map
@@ -100,7 +109,9 @@ ${lib.multicallDispatcherC { inherit name; }}
       for _ in $(seq 1 20); do
         if ( cd "$linkdir" && eval "$linkbase" ) 2>multicall/link.err; then converged=1; break; fi
         cat multicall/link.err >&2
-        sed -nE "s/.*multiple definition of [\`']([^']+)'.*/\1/p; s/.*duplicate symbol '([^']+)'.*/\1/p" \
+        # GNU ld: "multiple definition of `sym'"; Apple ld64: "duplicate
+        # symbol 'sym'"; lld (mingw -fuse-ld=lld): "duplicate symbol: sym".
+        sed -nE "s/.*multiple definition of [\`']([^']+)'.*/\1/p; s/.*duplicate symbol '([^']+)'.*/\1/p; s/.*duplicate symbol: ([^ ]+).*/\1/p" \
           multicall/link.err | sort -u > multicall/clash.syms
         [ -s multicall/clash.syms ] || { echo "multicall: link failed without a duplicate-symbol diagnostic" >&2; exit 1; }
         while IFS= read -r sym; do
