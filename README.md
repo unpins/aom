@@ -11,22 +11,21 @@ Part of the [unpins](https://unpins.org) project — native single-binary builds
 
 ## Usage
 
-`unpin aom` runs aom without installing — run it bare to list its programs:
+Run aom to list its programs:
 
 ```bash
-unpin aom
-```
-
-```
+> unpin aom
 aom is one binary with several programs: aomenc, aomdec
 Run one: aom <program> [args...]
 ```
+
+Run one of its programs:
 
 ```bash
 unpin aom aomenc --help
 ```
 
-Or install onto your PATH (each program becomes its own command):
+To install onto your PATH (each program becomes its own command):
 
 ```bash
 unpin install aom
@@ -54,11 +53,4 @@ The [Releases](https://github.com/unpins/aom/releases) page has standalone binar
 
 ## Build notes
 
-- **Multicall:** one binary at `bin/aom` carries both tools; `aomenc` / `aomdec` are dispatched by `argv[0]`. Invoke the bare binary as `aom <tool> [args]` too.
-- **Codec:** the AV1 reference encoder/decoder. Reads/writes y4m, raw YUV, IVF and OBU.
-- **Windows:** `mingw` cross, single `.exe`, no companion DLLs.
-- **macOS:** static `.a` codec + C++ runtime linked in; only system frameworks/libSystem stay dynamic.
-- **No embedded resources:** pure codec CLI — nothing baked in beyond the code, and libaom ships no man pages (no `unpin man` entry).
-- **Tests:** libaom's suite isn't run — it downloads ~GB of AV1 test vectors over the network (impossible in the build sandbox) and runs for a long time. The `aomenc --help` smoke is the floor.
-
-`aomenc` is thorough but slow — for everyday AV1 transcoding [ffmpeg](https://github.com/unpins/ffmpeg) (which links the same libaom) is usually the better tool; `aom` is here for reference-encoder access and AV1 conformance work.
+- **Multicall:** one binary at `bin/aom` carries both programs; `aomenc` / `aomdec` are dispatched by `argv[0]`. Invoke the bare binary as `aom <program> [args]` too.
