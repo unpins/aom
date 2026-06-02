@@ -86,7 +86,7 @@ ${lib.multicallDispatcherC { inherit name; }}
         extra_objs="$extra_objs $top/''${OBJ[$tool]#./}"
       done < multicall/apps.list
       for o in $dec_objs; do extra_objs="$extra_objs $top/''${o#./}"; done
-      linkbase="$(sed -E "s| -o (\"?)${primary}(\.exe)?(\"?)|$extra_objs $disp -o $out_bin|" "$linktxt") ${extraLinkFlags}"
+      linkbase="$(sed -E "s| -o (\"?)${primary}(\.exe)?(\"?)|$extra_objs $disp -o $out_bin|" "$linktxt") ${extraLinkFlags} ${lib.gcSectionsFlag pkgs}"
 
       # Iterative link: each failed attempt names remaining strong duplicates.
       # aomenc/aomdec each define app-provided hooks the shared tools_common.c

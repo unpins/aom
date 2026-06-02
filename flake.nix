@@ -71,6 +71,11 @@
     ulib.mkStandaloneFlake {
       inherit self;
       name = "aom";
+      # gc (function/data-sections + --gc-sections, on by default in nix-lib)
+      # needs pkgsAttr = the real lib so the overlay rebuilds it; libaom's
+      # dead encoder/decoder paths then get pruned. Measured 10.96 → 8.87 MB
+      # (−19.1%) on the static-musl binary.
+      pkgsAttr = "libaom";
       smoke = [ "aomenc" "--help" ];
       smokePattern = "Usage:|aomenc";
 

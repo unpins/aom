@@ -9,15 +9,28 @@ Standalone build of the [libaom](https://aomedia.googlesource.com/aom/) AV1 refe
 
 Part of the [unpins](https://unpins.org) project — native single-binary builds with no third-party runtime dependencies.
 
-## Installation
+## Usage
 
-Install with [unpin](https://github.com/unpins/unpin):
+`unpin aom` runs aom without installing — run it bare to list its programs:
 
 ```bash
 unpin aom
 ```
 
-This drops both `aomenc` and `aomdec` on your PATH (they are argv[0] shims into one multicall binary).
+```
+aom is one binary with several programs: aomenc, aomdec
+Run one: aom <program> [args...]
+```
+
+```bash
+unpin aom aomenc --help
+```
+
+Or install onto your PATH (each program becomes its own command):
+
+```bash
+unpin install aom
+```
 
 ## Build locally
 
