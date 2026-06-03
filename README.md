@@ -1,6 +1,6 @@
 # aom
 
-Standalone build of the [libaom](https://aomedia.googlesource.com/aom/) AV1 reference command-line tools — `aomenc` (encode) and `aomdec` (decode) for the AV1 video codec.
+Standalone build of the [libaom](https://aomedia.googlesource.com/aom/) AV1 reference command-line programs for the AV1 video codec.
 
 [![CI](https://github.com/unpins/aom/actions/workflows/aom.yml/badge.svg)](https://github.com/unpins/aom/actions)
 ![Linux](https://img.shields.io/badge/Linux-✓-success?logo=linux&logoColor=white)
@@ -11,25 +11,27 @@ Part of the [unpins](https://unpins.org) project — native single-binary builds
 
 ## Usage
 
-Run aom to list its programs:
+Run a program with [unpin](https://github.com/unpins/unpin):
 
 ```bash
-> unpin aom
-aom is one binary with several programs: aomenc, aomdec
-Run one: aom <program> [args...]
+unpin aom aomenc --cpu-used=4 -o out.ivf input.y4m
+unpin aom aomdec -o decoded.y4m out.ivf
 ```
 
-Run one of its programs:
-
-```bash
-unpin aom aomenc --help
-```
-
-To install onto your PATH (each program becomes its own command):
+To install the programs onto your PATH:
 
 ```bash
 unpin install aom
 ```
+
+`unpin install aom` creates the `aomenc` and `aomdec` commands.
+
+## Programs
+
+| command | what it does |
+| --- | --- |
+| `aomenc` | encode Y4M/YUV → AV1 |
+| `aomdec` | decode AV1 → Y4M/YUV |
 
 ## Build locally
 
