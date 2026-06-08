@@ -1,13 +1,13 @@
 # aom
 
-Standalone build of the [libaom](https://aomedia.googlesource.com/aom/) AV1 reference command-line programs for the AV1 video codec.
+The [libaom](https://aomedia.googlesource.com/aom/) AV1 reference command-line programs for the AV1 video codec, as a single self-contained binary built natively for Linux, macOS, and Windows.
 
 [![CI](https://github.com/unpins/aom/actions/workflows/aom.yml/badge.svg)](https://github.com/unpins/aom/actions)
 ![Linux](https://img.shields.io/badge/Linux-✓-success?logo=linux&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-✓-success?logo=apple&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-✓-success?logo=windows&logoColor=white)
 
-Part of the [unpins](https://unpins.org) project — native single-binary builds with no third-party runtime dependencies.
+Part of the [unpins](https://unpins.org) catalog; install it with [`unpin`](https://github.com/unpins/unpin): `unpin install aom`.
 
 ## Usage
 
