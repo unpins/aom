@@ -1,5 +1,5 @@
 {
-  description = "Standalone build of the AV1 reference tools (aomenc / aomdec)";
+  description = "the AV1 reference tools (aomenc / aomdec) as a single self-contained binary";
 
   nixConfig = {
     extra-substituters = [ "https://unpins.cachix.org" ];
