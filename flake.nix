@@ -66,7 +66,8 @@
           postInstall = "";
           # No tests: libaom's suite (ENABLE_TESTS, off above) downloads ~GB of
           # AV1 test vectors over the network — impossible in the Nix sandbox —
-          # and runs for a long time. The `aomenc --help` smoke is the floor.
+          # and runs for a long time. The `--unpin-program=aomenc --help` smoke
+          # is the floor.
           doCheck = false;
           meta = (old.meta or { }) // { outputsToInstall = [ "out" ]; };
         });
@@ -83,7 +84,7 @@
       # dead encoder/decoder paths then get pruned. Measured 10.96 → 8.87 MB
       # (−19.1%) on the static-musl binary.
       pkgsAttr = "libaom";
-      smoke = [ "aomenc" "--help" ];
+      smoke = [ "--unpin-program=aomenc" "--help" ];
       smokePattern = "Usage:|aomenc";
 
       # darwin: libaom.a's C++ objects pull `-lc++` → /usr/lib/libc++.1.dylib,
