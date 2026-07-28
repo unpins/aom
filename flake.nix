@@ -55,6 +55,26 @@
               "-DENABLE_TESTS=OFF"
               "-DENABLE_DOCS=OFF"
               "-DENABLE_TOOLS=OFF"
+            ]
+            # Engine (Linux) path: libaom's SIMD kernels (sse2/avx2, the per-arch
+            # NEON/VSX equivalents) are nasm/intrinsic-asm objects that can't enter
+            # the -flto bitcode module, so the LTO self-fold link would leave them
+            # undefined. Build the pure-C `generic` CPU target (no asm, runtime CPU
+            # detect off) so the whole codec is bitcode — same SIMD-off tradeoff
+            # jpeg-tools/libvpx make on the engine. The darwin/windows objcopy fold
+            # (multicall.nix) keeps SIMD.
+            ++ lib.optionals host.isLinux [
+              "-DAOM_TARGET_CPU=generic"
+              "-DCONFIG_RUNTIME_CPU_DETECT=0"
+              # Drop the optional VMAF tuning path. libvmaf is an EXTERNAL C++
+              # library built with GCC/libstdc++ (its <fstream> use references
+              # std::basic_filebuf::open(..., std::_Ios_Openmode) — a libstdc++
+              # ABI symbol). The engine links libc++, so libvmaf.a can't resolve
+              # against it (the tier-2 external-libstdc++ wall). aom's remaining
+              # C++ (vendored libwebm/libyuv .cc) is compiled by the engine →
+              # libc++, so dropping VMAF makes the whole link libc++-clean.
+              # darwin/windows folds keep VMAF (they fold the matching runtime).
+              "-DCONFIG_TUNE_VMAF=0"
             ];
           buildFlags = (old.buildFlags or [ ]) ++ [ "aomenc" "aomdec" ];
           outputs = [ "out" ];
@@ -87,14 +107,33 @@
       smoke = [ "--unpin-program=aomenc" "--help" ];
       smokePattern = "Usage:|aomenc";
 
+      # Build via the unpin-llvm engine + emit a bitcode multicall module. On
+      # Linux the engine compiles libaom (examples on, SIMD off → bitcode) and
+      # the standalone self-folds aomenc + aomdec into one `aom` binary. The
+      # apps are pure C, but libaom.a carries VENDORED C++ (rate control etc.),
+      # so the self-fold links libc++ statically (requires.cxx). There is NO
+      # external C++ library, so no forbidden libc++.1.dylib is dragged in —
+      # same situation as libvpx. darwin/windows keep the objcopy fold below.
+      engine = "unpin-llvm";
+      multicall = {
+        programs = [
+          { name = "aomenc"; }
+          { name = "aomdec"; }
+        ];
+        requires.cxx = true;
+      };
+
       # darwin: libaom.a's C++ objects pull `-lc++` → /usr/lib/libc++.1.dylib,
       # which the unpins darwin allowlist rejects; fold libc++ in statically
       # (same branch as avif/jxl/vpx).
       build = pkgs:
-        let sp = pkgs.pkgsStatic; in
-        mk pkgs sp (pkgs.lib.optionalAttrs sp.stdenv.hostPlatform.isDarwin {
-          extraLinkFlags = "-nostdlib++ ${sp.libcxx}/lib/libc++.a ${sp.libcxx}/lib/libc++abi.a";
-        });
+        if pkgs.stdenv.hostPlatform.isLinux
+        then mkAomApps pkgs.pkgsStatic   # engine path: examples → bitcode → selfFold
+        else
+          let sp = pkgs.pkgsStatic; in
+          mk pkgs sp (pkgs.lib.optionalAttrs sp.stdenv.hostPlatform.isDarwin {
+            extraLinkFlags = "-nostdlib++ ${sp.libcxx}/lib/libc++.a ${sp.libcxx}/lib/libc++abi.a";
+          });
 
       # mingw cross: -static* folds libgcc + libstdc++ (libaom.a's C++) into the
       # .exe so no companion DLLs ride alongside.
