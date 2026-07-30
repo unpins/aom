@@ -31,6 +31,9 @@
         let
           lib = scope.lib;
           host = scope.stdenv.hostPlatform;
+          # nix-lib turns the engine on for linux AND darwin, so both compile to
+          # bitcode and both self-fold; only the mingw cross keeps multicall.nix.
+          isEngine = lib.hasInfix "unpin-cc" (scope.stdenv.cc.name or "");
         in
         scope.libaom.overrideAttrs (old: {
           pname = "aom-apps";
@@ -56,26 +59,22 @@
               "-DENABLE_DOCS=OFF"
               "-DENABLE_TOOLS=OFF"
             ]
-            # Engine (Linux) path: libaom's SIMD kernels (sse2/avx2, the per-arch
-            # NEON/VSX equivalents) are nasm/intrinsic-asm objects that can't enter
-            # the -flto bitcode module, so the LTO self-fold link would leave them
-            # undefined. Build the pure-C `generic` CPU target (no asm, runtime CPU
-            # detect off) so the whole codec is bitcode — same SIMD-off tradeoff
-            # jpeg-tools/libvpx make on the engine. The darwin/windows objcopy fold
-            # (multicall.nix) keeps SIMD.
-            ++ lib.optionals host.isLinux [
-              "-DAOM_TARGET_CPU=generic"
-              "-DCONFIG_RUNTIME_CPU_DETECT=0"
-              # Drop the optional VMAF tuning path. libvmaf is an EXTERNAL C++
-              # library built with GCC/libstdc++ (its <fstream> use references
-              # std::basic_filebuf::open(..., std::_Ios_Openmode) — a libstdc++
-              # ABI symbol). The engine links libc++, so libvmaf.a can't resolve
-              # against it (the tier-2 external-libstdc++ wall). aom's remaining
-              # C++ (vendored libwebm/libyuv .cc) is compiled by the engine →
-              # libc++, so dropping VMAF makes the whole link libc++-clean.
-              # darwin/windows folds keep VMAF (they fold the matching runtime).
-              "-DCONFIG_TUNE_VMAF=0"
-            ];
+            # SIMD stays ON: libaom's kernels (sse2/avx2, the per-arch NEON/VSX
+            # equivalents) are nasm/intrinsic-asm objects that can't enter the
+            # -flto bitcode module, but the engine hook rescues native objects
+            # into a sidecar (module_native.a) the self-fold links alongside
+            # module.bc, so they resolve. A pure-C `AOM_TARGET_CPU=generic` build
+            # would link too — and cost several-fold encode throughput.
+            #
+            # Drop the optional VMAF tuning path. libvmaf is an EXTERNAL C++
+            # library built with GCC/libstdc++ (its <fstream> use references
+            # std::basic_filebuf::open(..., std::_Ios_Openmode) — a libstdc++ ABI
+            # symbol). The engine links libc++, so libvmaf.a can't resolve against
+            # it (the tier-2 external-libstdc++ wall). aom's remaining C++
+            # (vendored libwebm/libyuv .cc) is compiled by the engine → libc++, so
+            # dropping VMAF makes the whole link libc++-clean. The mingw fold
+            # keeps VMAF (it folds the matching runtime).
+            ++ lib.optionals isEngine [ "-DCONFIG_TUNE_VMAF=0" ];
           buildFlags = (old.buildFlags or [ ]) ++ [ "aomenc" "aomdec" ];
           outputs = [ "out" ];
           # bin/dev/static split plumbing is irrelevant — multicall.nix consumes
@@ -123,17 +122,13 @@
         requires.cxx = true;
       };
 
-      # darwin: libaom.a's C++ objects pull `-lc++` → /usr/lib/libc++.1.dylib,
-      # which the unpins darwin allowlist rejects; fold libc++ in statically
-      # (same branch as avif/jxl/vpx).
-      build = pkgs:
-        if pkgs.stdenv.hostPlatform.isLinux
-        then mkAomApps pkgs.pkgsStatic   # engine path: examples → bitcode → selfFold
-        else
-          let sp = pkgs.pkgsStatic; in
-          mk pkgs sp (pkgs.lib.optionalAttrs sp.stdenv.hostPlatform.isDarwin {
-            extraLinkFlags = "-nostdlib++ ${sp.libcxx}/lib/libc++.a ${sp.libcxx}/lib/libc++abi.a";
-          });
+      # Linux AND darwin: examples → bitcode → engine self-fold. darwin used to
+      # take multicall.nix, but the engine reaches darwin too, so its objects are
+      # bitcode and the fold's `llvm-objcopy --redefine-sym` cannot read them
+      # ("not recognized as a valid object file"). requires.cxx folds libc++
+      # statically, which also settles the /usr/lib/libc++.1.dylib the darwin
+      # allowlist rejects — no hand-rolled -nostdlib++ needed.
+      build = pkgs: mkAomApps pkgs.pkgsStatic;
 
       # mingw cross: -static* folds libgcc + libstdc++ (libaom.a's C++) into the
       # .exe so no companion DLLs ride alongside.
