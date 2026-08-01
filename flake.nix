@@ -11,7 +11,7 @@
   # libaom ships the AV1 reference CLIs aomenc (encode) and aomdec (decode) as
   # "examples" (ENABLE_EXAMPLES, on by default). We build them static and
   # post-link the two into a single `aom` multicall binary (multicall.nix);
-  # argv[0] dispatches and lib.withAliases embeds the names as UNPIN_META.
+  # argv[0] dispatches and the applet names ship as embedded aliases.
   #
   # aom is the same encoder chafa/avif/ffmpeg already cross-build on every
   # target (no nix-lib overlay needed). aomenc/aomdec are C, but libaom.a
