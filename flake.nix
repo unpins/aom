@@ -9,15 +9,15 @@
   inputs.unpins-lib.url = "github:unpins/nix-lib";
 
   # libaom ships the AV1 reference CLIs aomenc (encode) and aomdec (decode) as
-  # "examples" (ENABLE_EXAMPLES, on by default). We build them static and
-  # post-link the two into a single `aom` multicall binary (multicall.nix);
-  # argv[0] dispatches and the applet names ship as embedded aliases.
+  # "examples" (ENABLE_EXAMPLES, on by default). We build them static and let
+  # nix-lib's engine self-fold the two into a single `aom` multicall binary on
+  # every target; argv[0] dispatches and the applet names ship as embedded
+  # aliases.
   #
   # aom is the same encoder chafa/avif/ffmpeg already cross-build on every
   # target (no nix-lib overlay needed). aomenc/aomdec are C, but libaom.a
   # carries C++ objects (rate control etc.), so the link still pulls the C++
-  # runtime — folded in statically per platform (darwin libc++, mingw
-  # -static-libstdc++), same as the avif/jxl tools.
+  # runtime — folded in statically by requires.cxx, same as the avif/jxl tools.
   outputs = { self, unpins-lib }:
     let
       ulib = unpins-lib.lib;
@@ -31,8 +31,10 @@
         let
           lib = scope.lib;
           host = scope.stdenv.hostPlatform;
-          # nix-lib turns the engine on for linux AND darwin, so both compile to
-          # bitcode and both self-fold; only the mingw cross keeps multicall.nix.
+          # True on every target now: nix-lib turns the engine on for linux and
+          # darwin, and multicall.windows = true swaps the whole mingw set onto
+          # the engine adapter too. Keyed on the cc name rather than on a
+          # per-package stdenv override, so the set-wide swap is seen.
           isEngine = lib.hasInfix "unpin-cc" (scope.stdenv.cc.name or "");
         in
         scope.libaom.overrideAttrs (old: {
@@ -42,13 +44,12 @@
           # without winpthreads. (Same as jxl/avif on mingw.)
           buildInputs = (old.buildInputs or [ ])
             ++ lib.optionals host.isMinGW [ scope.windows.pthreads ];
-          # mingw: function/data-sections so the lld-driven multicall link
-          # (-fuse-ld=lld -Wl,--gc-sections in windowsBuild) can dead-strip
-          # libaom's unreachable encoder/decoder code from the .exe. On Linux
-          # the gc overlay already injects these chain-wide; this only fires
-          # on the mingw cross (no overlay there), so native/darwin unchanged.
-          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "")
-            + lib.optionalString host.isMinGW " -ffunction-sections -fdata-sections";
+          # libaom carries none of its own; this used to append mingw-only
+          # -ffunction-sections/-fdata-sections feeding the fold's --gc-sections
+          # post-link. The engine self-fold has no such pass (full LTO prunes
+          # instead), so only the base value is left — dropping the attribute
+          # outright would unset the variable and move every other target's drv.
+          NIX_CFLAGS_COMPILE = old.NIX_CFLAGS_COMPILE or "";
           cmakeFlags =
             (lib.filter (f: !(lib.hasPrefix "-DBUILD_SHARED_LIBS=" f))
               (old.cmakeFlags or [ ]))
@@ -66,14 +67,15 @@
             # module.bc, so they resolve. A pure-C `AOM_TARGET_CPU=generic` build
             # would link too — and cost several-fold encode throughput.
             #
-            # Drop the optional VMAF tuning path. libvmaf is an EXTERNAL C++
+            # Drop the optional `--tune=vmaf` path. libvmaf is an EXTERNAL C++
             # library built with GCC/libstdc++ (its <fstream> use references
             # std::basic_filebuf::open(..., std::_Ios_Openmode) — a libstdc++ ABI
             # symbol). The engine links libc++, so libvmaf.a can't resolve against
             # it (the tier-2 external-libstdc++ wall). aom's remaining C++
             # (vendored libwebm/libyuv .cc) is compiled by the engine → libc++, so
-            # dropping VMAF makes the whole link libc++-clean. The mingw fold
-            # keeps VMAF (it folds the matching runtime).
+            # dropping VMAF makes the whole link libc++-clean. nixpkgs' mingw
+            # cross passes CONFIG_TUNE_VMAF=1, so windows used to be the one
+            # target shipping the tuner; on the engine it now matches the rest.
             ++ lib.optionals isEngine [ "-DCONFIG_TUNE_VMAF=0" ];
           buildFlags = (old.buildFlags or [ ]) ++ [ "aomenc" "aomdec" ];
           outputs = [ "out" ];
@@ -90,10 +92,6 @@
           doCheck = false;
           meta = (old.meta or { }) // { outputsToInstall = [ "out" ]; };
         });
-
-      mk = pkgs: scope: extra:
-        import ./multicall.nix { lib = pkgs.lib // ulib; }
-          ({ pkgs = scope; libaomApps = mkAomApps scope; } // extra);
     in
     ulib.mkStandaloneFlake {
       inherit self;
@@ -106,15 +104,16 @@
       smoke = [ "--unpin-program=aomenc" "--help" ];
       smokePattern = "Usage:|aomenc";
 
-      # Build via the unpin-llvm engine + emit a bitcode multicall module. On
-      # Linux the engine compiles libaom (examples on, SIMD off → bitcode) and
-      # the standalone self-folds aomenc + aomdec into one `aom` binary. The
-      # apps are pure C, but libaom.a carries VENDORED C++ (rate control etc.),
-      # so the self-fold links libc++ statically (requires.cxx). There is NO
-      # external C++ library, so no forbidden libc++.1.dylib is dragged in —
-      # same situation as libvpx. darwin/windows keep the objcopy fold below.
+      # Build via the unpin-llvm engine + emit a bitcode multicall module. The
+      # engine compiles libaom (examples on) and the standalone self-folds
+      # aomenc + aomdec into one `aom` binary on every target — Linux, darwin
+      # and the mingw cross alike. The apps are pure C, but libaom.a carries
+      # VENDORED C++ (rate control etc.), so the self-fold links libc++
+      # statically (requires.cxx). There is NO external C++ library, so no
+      # forbidden libc++.1.dylib is dragged in — same situation as libvpx.
       engine = "unpin-llvm";
       multicall = {
+        windows = true;
         programs = [
           { name = "aomenc"; }
           { name = "aomdec"; }
@@ -122,24 +121,8 @@
         requires.cxx = true;
       };
 
-      # Linux AND darwin: examples → bitcode → engine self-fold. darwin used to
-      # take multicall.nix, but the engine reaches darwin too, so its objects are
-      # bitcode and the fold's `llvm-objcopy --redefine-sym` cannot read them
-      # ("not recognized as a valid object file"). requires.cxx folds libc++
-      # statically, which also settles the /usr/lib/libc++.1.dylib the darwin
-      # allowlist rejects — no hand-rolled -nostdlib++ needed.
       build = pkgs: mkAomApps pkgs.pkgsStatic;
 
-      # mingw cross: -static* folds libgcc + libstdc++ (libaom.a's C++) into the
-      # .exe so no companion DLLs ride alongside.
-      windowsBuild = pkgs:
-        let cross = ulib.mingwStaticCross pkgs; in
-        mk pkgs cross {
-          # -static* folds libgcc + libstdc++ (libaom.a's C++) into the .exe.
-          # The linker (lld) + --gc-sections + --icf=safe come uniformly from
-          # lib.gcSectionsFlag (appended in multicall.nix); on PE that also
-          # sidesteps GNU ld's --gc-sections regression.
-          extraLinkFlags = "-static -static-libgcc -static-libstdc++";
-        };
+      windowsBuild = pkgs: mkAomApps (ulib.mingwStaticCross pkgs);
     };
 }
