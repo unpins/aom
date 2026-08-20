@@ -56,3 +56,4 @@ The [Releases](https://github.com/unpins/aom/releases) page has standalone binar
 ## Build notes
 
 - **Multicall:** one binary at `bin/aom` carries both programs; `aomenc` / `aomdec` are dispatched by `argv[0]`. Invoke the bare binary as `aom <program> [args]` too.
+- **No man pages** — libaom ships none for `aomenc`/`aomdec`; run with `--help`.
