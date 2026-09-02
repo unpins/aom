@@ -115,8 +115,10 @@
       multicall = {
         windows = true;
         programs = [
-          { name = "aomenc"; }
-          { name = "aomdec"; }
+          # libaom installs no man pages at all — `aomenc`/`aomdec` document
+          # themselves through `--help` only.
+          { name = "aomenc"; noMan = true; }
+          { name = "aomdec"; noMan = true; }
         ];
         requires.cxx = true;
       };
