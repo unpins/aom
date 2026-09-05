@@ -14,8 +14,8 @@ Part of the [unpins](https://unpins.org) catalog; install it with [`unpin`](http
 Run a program with [unpin](https://github.com/unpins/unpin):
 
 ```bash
-unpin aom aomenc --cpu-used=4 -o out.ivf input.y4m
-unpin aom aomdec -o decoded.y4m out.ivf
+unpin aom --unpin-program=aomenc --cpu-used=4 -o out.ivf input.y4m
+unpin aom --unpin-program=aomdec -o decoded.y4m out.ivf
 ```
 
 To install the programs onto your PATH:
@@ -37,14 +37,14 @@ unpin install aom
 
 ```bash
 nix build github:unpins/aom
-./result/bin/aomenc --cpu-used=4 -o out.ivf input.y4m
-./result/bin/aomdec -o decoded.y4m out.ivf
+./result/bin/aom --unpin-program=aomenc --cpu-used=4 -o out.ivf input.y4m
+./result/bin/aom --unpin-program=aomdec -o decoded.y4m out.ivf
 ```
 
 Or run directly:
 
 ```bash
-nix run github:unpins/aom -- aomenc --help
+nix run github:unpins/aom -- --unpin-program=aomenc --help
 ```
 
 The first invocation will offer to add the [unpins.cachix.org](https://unpins.cachix.org) substituter so most pulls come pre-built.
@@ -55,5 +55,6 @@ The [Releases](https://github.com/unpins/aom/releases) page has standalone binar
 
 ## Build notes
 
-- **Multicall:** one binary at `bin/aom` carries both programs; `aomenc` / `aomdec` are dispatched by `argv[0]`. Invoke the bare binary as `aom <program> [args]` too.
+- **Both programs, one binary.** `unpin install aom` gives you `aomenc` and `aomdec` as ordinary commands; without installing, pick one with `--unpin-program=aomenc`.
 - **No man pages** — libaom ships none for `aomenc`/`aomdec`; run with `--help`.
+- **Tuning metrics:** `--tune=psnr` and `--tune=ssim` work. The VMAF family (`vmaf`, `vmaf_neg`, `vmaf_with_preprocessing`, `vmaf_without_preprocessing`), `butteraugli` and `iq` do not — each needs an extra library that is not built in, and aomenc stops with *"Tried to set control 24"* if you ask for one. `aomenc --help` lists them anyway; that list is upstream's and does not depend on how the encoder was built, so any build without those libraries behaves the same way.
