@@ -96,10 +96,14 @@
     ulib.mkStandaloneFlake {
       inherit self;
       name = "aom";
-      # gc (function/data-sections + --gc-sections, on by default in nix-lib)
-      # needs pkgsAttr = the real lib so the overlay rebuilds it; libaom's
-      # dead encoder/decoder paths then get pruned. Measured 10.96 → 8.87 MB
-      # (−19.1%) on the static-musl binary.
+      # The nixpkgs attribute this package is: there is no `aom` in nixpkgs, the
+      # programs live in `libaom`. Everything shared that reaches for the
+      # upstream recipe by name keys on this, the cross links and the Windows
+      # man graft among them -- dropping it moves the windows derivation.
+      # (It used to be here for the --gc-sections overlay, which shrank the
+      # static-musl binary 10.96 → 8.87 MB. That overlay no longer runs: the
+      # engine replaces the whole stdenv, so nix-lib skips gc and lto and lets
+      # full LTO prune instead.)
       pkgsAttr = "libaom";
       smoke = [ "--unpin-program=aomenc" "--help" ];
       smokePattern = "Usage:|aomenc";
