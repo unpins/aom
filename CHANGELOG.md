@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.12.1-2] - 2026-09-26
+
 ### Changed
 
 - Picking a program now uses `--unpin-program=`, the same selector as the rest
