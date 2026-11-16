@@ -39,6 +39,12 @@
           # without winpthreads. (Same as jxl/avif on mingw.)
           buildInputs = (old.buildInputs or [ ])
             ++ lib.optionals host.isMinGW [ scope.windows.pthreads ];
+          # SIMD stays ON: libaom's kernels (sse2/avx2, the per-arch NEON/VSX
+          # equivalents) are nasm/intrinsic-asm objects that can't enter the
+          # -flto bitcode module, but the engine hook rescues native objects
+          # into a sidecar (module_native.a) the self-fold links alongside
+          # module.bc, so they resolve. A pure-C `AOM_TARGET_CPU=generic` build
+          # would link too — and cost several-fold encode throughput.
           cmakeFlags =
             (lib.filter (f: !(lib.hasPrefix "-DBUILD_SHARED_LIBS=" f))
               (old.cmakeFlags or [ ]))
@@ -48,24 +54,7 @@
               "-DENABLE_TESTS=OFF"
               "-DENABLE_DOCS=OFF"
               "-DENABLE_TOOLS=OFF"
-            ]
-            # SIMD stays ON: libaom's kernels (sse2/avx2, the per-arch NEON/VSX
-            # equivalents) are nasm/intrinsic-asm objects that can't enter the
-            # -flto bitcode module, but the engine hook rescues native objects
-            # into a sidecar (module_native.a) the self-fold links alongside
-            # module.bc, so they resolve. A pure-C `AOM_TARGET_CPU=generic` build
-            # would link too — and cost several-fold encode throughput.
-            #
-            # Drop the optional `--tune=vmaf` path. libvmaf is an EXTERNAL C++
-            # library built with GCC/libstdc++ (its <fstream> use references
-            # std::basic_filebuf::open(..., std::_Ios_Openmode) — a libstdc++ ABI
-            # symbol). The engine links libc++, so libvmaf.a can't resolve against
-            # it (the tier-2 external-libstdc++ wall). aom's remaining C++
-            # (vendored libwebm/libyuv .cc) is compiled by the engine → libc++, so
-            # dropping VMAF makes the whole link libc++-clean. nixpkgs' mingw
-            # cross passes CONFIG_TUNE_VMAF=1, so windows used to be the one
-            # target shipping the tuner; on the engine it now matches the rest.
-            ++ [ "-DCONFIG_TUNE_VMAF=0" ];
+            ];
           buildFlags = (old.buildFlags or [ ]) ++ [ "aomenc" "aomdec" ];
           outputs = [ "out" ];
           # bin/dev/static split plumbing is irrelevant — multicall.nix consumes
