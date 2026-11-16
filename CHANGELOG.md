@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- `--tune=vmaf` and the rest of the VMAF family work, given a model file with
+  `--vmaf-model-path=`.
+
+### Fixed
+
+- The README said `--tune=iq` needed a library that was not built in; it works
+  with `--allintra`, as upstream requires. Only `butteraugli` is unavailable.
+
 ## [3.12.1-2] - 2026-09-26
 
 ### Changed
