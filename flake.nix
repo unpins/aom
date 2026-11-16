@@ -31,11 +31,6 @@
         let
           lib = scope.lib;
           host = scope.stdenv.hostPlatform;
-          # True on every target now: nix-lib turns the engine on for linux and
-          # darwin, and multicall.windows = true swaps the whole mingw set onto
-          # the engine adapter too. Keyed on the cc name rather than on a
-          # per-package stdenv override, so the set-wide swap is seen.
-          isEngine = lib.hasInfix "unpin-cc" (scope.stdenv.cc.name or "");
         in
         scope.libaom.overrideAttrs (old: {
           pname = "aom-apps";
@@ -76,7 +71,7 @@
             # dropping VMAF makes the whole link libc++-clean. nixpkgs' mingw
             # cross passes CONFIG_TUNE_VMAF=1, so windows used to be the one
             # target shipping the tuner; on the engine it now matches the rest.
-            ++ lib.optionals isEngine [ "-DCONFIG_TUNE_VMAF=0" ];
+            ++ [ "-DCONFIG_TUNE_VMAF=0" ];
           buildFlags = (old.buildFlags or [ ]) ++ [ "aomenc" "aomdec" ];
           outputs = [ "out" ];
           # bin/dev/static split plumbing is irrelevant — multicall.nix consumes
