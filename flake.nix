@@ -14,19 +14,20 @@
   # every target; argv[0] dispatches and the applet names ship as embedded
   # aliases.
   #
-  # aom is the same encoder chafa/avif/ffmpeg already cross-build on every
-  # target (no nix-lib overlay needed). aomenc/aomdec are C, but libaom.a
-  # carries C++ objects (rate control etc.), so the link still pulls the C++
-  # runtime — folded in statically by requires.cxx, same as the avif/jxl tools.
+  # nix-lib's mingw overlay builds libaom without its programs (ffmpeg only
+  # needs libaom.a); mkAomApps below turns them back on. aomenc/aomdec are C,
+  # but libaom.a carries C++ objects (rate control etc.) and libvmaf is C++,
+  # so the link pulls the C++ runtime, folded in statically by requires.cxx.
   outputs = { self, unpins-lib }:
     let
       ulib = unpins-lib.lib;
 
       # libaom with the two apps built static. nixpkgs hardcodes
-      # BUILD_SHARED_LIBS=ON and splits bin/dev/static outputs; we force static,
-      # collapse to one output, and build ONLY aomenc/aomdec — ENABLE_EXAMPLES
-      # otherwise pulls ~12 example executables (incl. the C++ svc_encoder_rtc),
-      # all dead weight.
+      # BUILD_SHARED_LIBS=ON and splits bin/dev/static outputs; we force static
+      # and collapse to one output. buildFlags names aomenc/aomdec, but that
+      # only narrows the build phase: `make install` depends on `all` and still
+      # builds the other ~12 examples. Only the two declared programs reach the
+      # binary.
       mkAomApps = scope:
         let
           lib = scope.lib;
@@ -57,9 +58,8 @@
             ];
           buildFlags = (old.buildFlags or [ ]) ++ [ "aomenc" "aomdec" ];
           outputs = [ "out" ];
-          # bin/dev/static split plumbing is irrelevant — multicall.nix consumes
-          # the build-tree objects + aomenc's link.txt and installs its own bin.
-          # nixpkgs' meta.outputsToInstall still names the now-removed `bin`
+          # nixpkgs' postFixup moves libaom.a to the `static` output, which is
+          # gone. nixpkgs' meta.outputsToInstall still names the now-removed `bin`
           # output; repoint it at `out` so `nix build` doesn't ask for `bin`.
           postFixup = "";
           # No tests: libaom's suite (ENABLE_TESTS, off above) downloads ~GB of
@@ -89,9 +89,9 @@
       # engine compiles libaom (examples on) and the standalone self-folds
       # aomenc + aomdec into one `aom` binary on every target — Linux, darwin
       # and the mingw cross alike. The apps are pure C, but libaom.a carries
-      # VENDORED C++ (rate control etc.), so the self-fold links libc++
-      # statically (requires.cxx). There is NO external C++ library, so no
-      # forbidden libc++.1.dylib is dragged in — same situation as libvpx.
+      # C++ (rate control etc.) and libvmaf is C++ too; both are compiled by
+      # the engine, so the self-fold links its libc++ statically
+      # (requires.cxx) and no libc++.1.dylib is pulled in on macOS.
       engine = "unpin-llvm";
       multicall = {
         windows = true;
