@@ -39,12 +39,6 @@
           # without winpthreads. (Same as jxl/avif on mingw.)
           buildInputs = (old.buildInputs or [ ])
             ++ lib.optionals host.isMinGW [ scope.windows.pthreads ];
-          # libaom carries none of its own; this used to append mingw-only
-          # -ffunction-sections/-fdata-sections feeding the fold's --gc-sections
-          # post-link. The engine self-fold has no such pass (full LTO prunes
-          # instead), so only the base value is left — dropping the attribute
-          # outright would unset the variable and move every other target's drv.
-          NIX_CFLAGS_COMPILE = old.NIX_CFLAGS_COMPILE or "";
           cmakeFlags =
             (lib.filter (f: !(lib.hasPrefix "-DBUILD_SHARED_LIBS=" f))
               (old.cmakeFlags or [ ]))
@@ -79,7 +73,6 @@
           # nixpkgs' meta.outputsToInstall still names the now-removed `bin`
           # output; repoint it at `out` so `nix build` doesn't ask for `bin`.
           postFixup = "";
-          postInstall = "";
           # No tests: libaom's suite (ENABLE_TESTS, off above) downloads ~GB of
           # AV1 test vectors over the network — impossible in the Nix sandbox —
           # and runs for a long time. The `--unpin-program=aomenc --help` smoke
